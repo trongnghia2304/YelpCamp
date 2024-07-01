@@ -1,13 +1,18 @@
 const express = require('express');
 const path = require('path');
 const mongoose = require('mongoose');
-const catchAsync = require('./utils/catchAsync');
 const ejsMate = require('ejs-mate'); // layout formating
-const { campgroundSchema } = require('./schemas');
-const Campground = require('./models/campground');
 const methodOverride = require('method-override');
+const flash = require('connect-flash');
+const session = require('express-session');
 const ExpressError = require('./utils/ExpressError');
+const passport = require('passport');
+const LocalStrategy = require('passport-local');
+const User = require('./models/user');
 
+const userRoutes = require('./routes/users');
+const campgroundRoutes = require('./routes/campgrounds');
+const reviewRoutes = require('./routes/reviews');
 
 mongoose.connect('mongodb://127.0.0.1:27017/CampgroundYelp')
     .then(() => {
@@ -32,57 +37,45 @@ app.engine('ejs', ejsMate);
 
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const validateCampground = (req, res, next) => {
 
-    const { error } = campgroundSchema.validate(req.body);
-    if (error) {
-        console.log(error);
-        const msg = error.details.map(el => el.message).join(',')
-        throw new ExpressError(msg, 400);
-    } else {
-        next();
+const sessionConfig = {
+    secret: "thisisasecretkey",
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        httpOnly: true,
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
+        maxAge: 1000 * 60 * 60 * 24 * 7
     }
 }
+app.use(session(sessionConfig));
+app.use(flash());
+
+app.use(passport.initialize());
+app.use(passport.session());
+passport.use(new LocalStrategy(User.authenticate()));
+
+passport.serializeUser(User.serializeUser());//how do we store a user in the session
+passport.deserializeUser(User.deserializeUser());//how do we get a user out of the session
+
+app.use((req, res, next) => {
+    res.locals.currentUser = req.user;
+    res.locals.success = req.flash('success')
+    res.locals.error = req.flash('error')
+    next();
+})
+
+app.use('/', userRoutes);
+app.use('/campgrounds', campgroundRoutes);
+app.use('/campgrounds/:id/reviews', reviewRoutes);
+
+app.get('/')
 
 app.get('/', (req, res) => {
     res.render('home')
 })
-
-app.get('/campgrounds', catchAsync(async (req, res) => {
-    const campgrounds = await Campground.find({});
-    res.render('campgrounds/index', { campgrounds })
-}))
-
-app.get('/campgrounds/new', catchAsync(async (req, res) => {
-    res.render('campgrounds/new')
-}))
-
-app.get('/campgrounds/:id', catchAsync(async (req, res) => {
-    const campground = await Campground.findById(req.params.id);
-    res.render('campgrounds/show', { campground })
-}))
-
-app.get('/campgrounds/:id/edit', catchAsync(async (req, res) => {
-    const campground = await Campground.findById(req.params.id);
-    res.render('campgrounds/edit', { campground })
-}))
-
-app.post('/campgrounds', validateCampground, catchAsync(async (req, res, next) => {
-    const campground = new Campground(req.body.campground);
-    await campground.save();
-    res.redirect(`/campgrounds/${campground._id}`);
-}))
-
-app.put('/campgrounds/:id', validateCampground, catchAsync((async (req, res) => {
-    await Campground.findByIdAndUpdate(req.params.id, { ...req.body.campground })
-    res.redirect(`/campgrounds/${req.params.id}`);
-})))
-
-app.delete('/campgrounds/:id', catchAsync(async (req, res) => {
-    await Campground.findByIdAndDelete(req.params.id)
-    res.redirect(`/campgrounds`);
-}))
 
 app.all('*', (req, res, next) => {
     next(new ExpressError('Page Not Found', 404));
