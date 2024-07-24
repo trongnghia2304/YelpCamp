@@ -23,7 +23,7 @@ const reviewRoutes = require('./routes/reviews');
 
 const MongoStore = require('connect-mongo');
 
-const dbUrl = 'mongodb://127.0.0.1:27017/CampgroundYelp';
+const dbUrl = process.env.DB_URL || 'mongodb://127.0.0.1:27017/CampgroundYelp';
 //mongodb://127.0.0.1:27017/CampgroundYelp
 mongoose.connect(dbUrl)
     .then(() => {
@@ -95,12 +95,12 @@ app.use(
         },
     })
 );
-
+const secret = process.env.SECRET || 'thisshouldbeabettersecret';
 const store = MongoStore.create({
     mongoUrl: dbUrl,
     touchAfter: 24 * 60 * 60,
     crypto: {
-        secret: 'thisshouldbeabettersecret!'
+        secret: secret
     }
 });
 
@@ -111,7 +111,7 @@ store.on('error', function (e) {
 const sessionConfig = {
     store,
     name: 'session',
-    secret: "thisisasecretkey",
+    secret: secret,
     //secure: true,
     resave: false,
     saveUninitialized: true,
@@ -158,6 +158,7 @@ app.use((error, req, res, next) => {
     res.status(statusCode).render('error', { error });
 })
 
-app.listen(3000, () => {
-    console.log("Hello from port 3000")
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Hello from port ${port}`)
 })
