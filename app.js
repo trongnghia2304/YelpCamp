@@ -23,7 +23,7 @@ const reviewRoutes = require('./routes/reviews');
 
 const MongoStore = require('connect-mongo');
 
-const dbUrl = 'mongodb://127.0.0.1:27017/CampgroundYelp';
+const dbUrl = process.env.DB_URL || 'mongodb://127.0.0.1:27017/CampgroundYelp';
 //mongodb://127.0.0.1:27017/CampgroundYelp
 mongoose.connect(dbUrl)
     .then(() => {
