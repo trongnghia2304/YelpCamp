@@ -6,7 +6,9 @@
                     <%= error.message %>
                 </h4>
                 <div style="overflow-wrap: break-word;">
-                    <%= error.stack %>
+                    <% if(process.env.NODE_ENV !=='production' ) {%>
+                        <%= error.stack %>
+                            <% } %>
                 </div>
             </div>
         </div>

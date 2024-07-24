@@ -9,6 +9,8 @@ const ejsMate = require('ejs-mate'); // layout formating
 const methodOverride = require('method-override');
 const flash = require('connect-flash');
 const session = require('express-session');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
 const ExpressError = require('./utils/ExpressError');
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
@@ -18,7 +20,12 @@ const userRoutes = require('./routes/users');
 const campgroundRoutes = require('./routes/campgrounds');
 const reviewRoutes = require('./routes/reviews');
 
-mongoose.connect('mongodb://127.0.0.1:27017/CampgroundYelp')
+
+const MongoStore = require('connect-mongo');
+
+const dbUrl = 'mongodb://127.0.0.1:27017/CampgroundYelp';
+//mongodb://127.0.0.1:27017/CampgroundYelp
+mongoose.connect(dbUrl)
     .then(() => {
         console.log("MONGO CONNECTION OPEN!!!")
     })
@@ -42,10 +49,70 @@ app.engine('ejs', ejsMate);
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(mongoSanitize({
+    replaceWith: '_'
+}))
+app.use(helmet());
 
+const scriptSrcUrls = [
+    "https://stackpath.bootstrapcdn.com/",
+    "https://kit.fontawesome.com/",
+    "https://cdnjs.cloudflare.com/",
+    "https://cdn.jsdelivr.net",
+    "https://cdn.maptiler.com/",
+];
+const styleSrcUrls = [
+    "https://kit-free.fontawesome.com/",
+    "https://stackpath.bootstrapcdn.com/",
+    "https://fonts.googleapis.com/",
+    "https://use.fontawesome.com/",
+    "https://cdn.jsdelivr.net",
+    "https://cdn.maptiler.com/",
+];
+const connectSrcUrls = [
+    "https://api.maptiler.com/",
+];
+const fontSrcUrls = [];
+app.use(
+    helmet.contentSecurityPolicy({
+        directives: {
+            defaultSrc: [],
+            connectSrc: ["'self'", ...connectSrcUrls],
+            scriptSrc: ["'unsafe-inline'", "'self'", ...scriptSrcUrls],
+            styleSrc: ["'self'", "'unsafe-inline'", ...styleSrcUrls],
+            workerSrc: ["'self'", "blob:"],
+            childSrc: ["blob:"],
+            objectSrc: [],
+            imgSrc: [
+                "'self'",
+                "blob:",
+                "data:",
+                "https://res.cloudinary.com/dyksiw4xd/", //SHOULD MATCH CLOUDINARY ACCOUNT!
+                "https://images.unsplash.com",
+                "https://api.maptiler.com/",
+            ],
+            fontSrc: ["'self'", ...fontSrcUrls],
+        },
+    })
+);
+
+const store = MongoStore.create({
+    mongoUrl: dbUrl,
+    touchAfter: 24 * 60 * 60,
+    crypto: {
+        secret: 'thisshouldbeabettersecret!'
+    }
+});
+
+store.on('error', function (e) {
+    console.log("SESSION STORE ERROR", e); 
+});
 
 const sessionConfig = {
+    store,
+    name: 'session',
     secret: "thisisasecretkey",
+    //secure: true,
     resave: false,
     saveUninitialized: true,
     cookie: {
